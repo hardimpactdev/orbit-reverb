@@ -28,6 +28,7 @@
         <env name="DB_URL" value=""/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
+        <env name="REVERB_APPS" value="[{&quot;app_id&quot;:&quot;gateway-id&quot;,&quot;key&quot;:&quot;gateway-key&quot;,&quot;secret&quot;:&quot;gateway-secret&quot;},{&quot;app_id&quot;:&quot;hauzer-id&quot;,&quot;key&quot;:&quot;hauzer-key&quot;,&quot;secret&quot;:&quot;hauzer-secret&quot;}]"/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
