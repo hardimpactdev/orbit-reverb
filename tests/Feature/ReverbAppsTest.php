@@ -1,8 +1,8 @@
 <?php
 
-use HardImpact\ReverbManager\ReverbManager;
-use Laravel\Reverb\Contracts\ApplicationProvider;
+use App\Reverb\ReverbManager;
 use Illuminate\Support\Facades\Artisan;
+use Laravel\Reverb\Contracts\ApplicationProvider;
 
 it('boots with the managed provider and waits for a fresh registry', function () {
     $provider = app(ApplicationProvider::class);
@@ -15,6 +15,6 @@ it('boots with the managed provider and waits for a fresh registry', function ()
 });
 
 it('refuses to start without a restricted registry configuration', function () {
-    config()->set('reverb-manager.registry_token', null);
+    config()->set('registry.registry_token', null);
     expect(fn () => Artisan::call('orbit:reverb:start'))->toThrow(RuntimeException::class, 'Reverb registry configuration is incomplete.');
 });

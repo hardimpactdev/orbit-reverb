@@ -5,6 +5,9 @@
          colors="true"
 >
     <testsuites>
+        <testsuite name="Arch">
+            <file>tests/ArchTest.php</file>
+        </testsuite>
         <testsuite name="Unit">
             <directory>tests/Unit</directory>
         </testsuite>
@@ -14,7 +17,8 @@
     </testsuites>
     <source>
         <include>
-            <directory>app</directory>
+            <directory>app/Reverb</directory>
+            <file>app/Providers/ReverbServiceProvider.php</file>
         </include>
     </source>
     <php>

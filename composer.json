@@ -10,21 +10,23 @@
     ],
     "license": "MIT",
     "require": {
-        "php": "^8.3",
+        "php": "^8.4",
         "laravel/framework": "^13.17",
-        "laravel/reverb": "^1.11",
+        "laravel/reverb": "1.11.1",
         "laravel/tinker": "^3.0",
-        "hardimpactdev/reverb-manager": "dev-main"
+        "react/http": "^1.11",
+        "react/promise": "^3.0"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",
-        "laravel/boost": "^2.10",
+        "larastan/larastan": "^3.9",
         "laravel/pail": "^1.2.5",
         "laravel/pao": "^1.0.6",
         "laravel/pint": "^1.27",
         "mockery/mockery": "^1.6",
         "nunomaduro/collision": "^8.6",
-        "pestphp/pest": "^5.3"
+        "pestphp/pest": "^5.3",
+        "pestphp/pest-plugin-type-coverage": "^5.0"
     },
     "autoload": {
         "psr-4": {
@@ -67,7 +69,10 @@
         ],
         "pre-package-uninstall": [
             "Illuminate\\Foundation\\ComposerScripts::prePackageUninstall"
-        ]
+        ],
+        "analyse": "vendor/bin/phpstan analyse",
+        "lint:check": "vendor/bin/pint --test",
+        "test:types": "vendor/bin/pest --type-coverage --min=100"
     },
     "extra": {
         "laravel": {
@@ -84,17 +89,5 @@
         }
     },
     "minimum-stability": "stable",
-    "prefer-stable": true,
-    "repositories": [
-        {
-            "type": "path",
-            "url": "packages/reverb-manager",
-            "options": {
-                "symlink": false,
-                "versions": {
-                    "hardimpactdev/reverb-manager": "dev-main"
-                }
-            }
-        }
-    ]
+    "prefer-stable": true
 }

@@ -15,3 +15,6 @@ use Tests\TestCase;
 
 pest()->extend(TestCase::class)
     ->in('Feature');
+
+require_once __DIR__.'/Support/registry.php';
+require_once __DIR__.'/Support/wire.php';
