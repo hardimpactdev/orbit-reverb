@@ -41,3 +41,13 @@ php artisan reverb:start --host=0.0.0.0 --port=8080
 Caddy in front of it (managed by Orbit) terminates TLS and handles the
 WebSocket upgrade for `reverb.orbit`, then forwards the connection to that
 port.
+
+## Tests
+
+Run `composer test`. Pest uses ParaTest with `--parallel` and detects all
+available CPUs. Each worker has an in-memory SQLite database and process-local
+configuration; the suite fakes broadcasting and opens no Reverb listener.
+A fixed synthetic application key in `phpunit.xml` removes the need for a local
+`.env`. CI runs the same command on a hosted runner. The small suite needs no
+shard matrix; stock `composer test -- --shard=N/M` remains available. For a
+focused check on a busy host, select the affected tests with `--processes=4`.
