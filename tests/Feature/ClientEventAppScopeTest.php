@@ -1,5 +1,8 @@
 <?php
 
+declare(strict_types=1);
+
+use App\Reverb\ReverbManager;
 use Laravel\Reverb\Application;
 use Laravel\Reverb\Contracts\ApplicationProvider;
 use Laravel\Reverb\Contracts\Connection;
@@ -9,6 +12,10 @@ use Laravel\Reverb\Jobs\PruneStaleConnections;
 use Laravel\Reverb\Protocols\Pusher\Contracts\ChannelManager;
 use Laravel\Reverb\Protocols\Pusher\Server;
 use Laravel\Reverb\Servers\Reverb\Factory;
+
+beforeEach(function (): void {
+    app(ReverbManager::class)->apply(registrySnapshot(1, [registryApp('gateway-id'), registryApp('hauzer-id')]));
+});
 
 it('checks a client event in its own app after periodic housekeeping', function (string $job) {
     Factory::makePusherRouter('');

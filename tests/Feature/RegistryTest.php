@@ -69,3 +69,14 @@ it('keeps numeric looking application identities strictly separate', function ()
         ->and($manager->findByKey('01-key')->secret())->toBe('second')
         ->and($manager->findById('1')->secret())->toBe('first');
 });
+
+it('requires restart for a new epoch even when its revision advances', function (): void {
+    $manager = app(ReverbManager::class);
+    $manager->apply(registrySnapshot(2, [registryApp('gateway')]));
+    $gateway = $manager->findById('gateway');
+
+    expect(fn () => $manager->apply(array_replace(registrySnapshot(3, [registryApp('gateway')]), ['epoch' => 'new-history'])))
+        ->toThrow(RegistryRestartRequired::class)
+        ->and($manager->revision())->toBe(2)
+        ->and($manager->findById('gateway'))->toBe($gateway);
+});

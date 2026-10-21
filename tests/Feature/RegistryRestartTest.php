@@ -84,7 +84,9 @@ it('exits with failure on a registry history change and cold starts with the res
         $waitListening();
         $clients[] = new WireClient($serverPort, 'old-key');
 
-        $restored = registrySnapshot($change === 'lower revision' ? 1 : 2, [registryApp('restored')]);
+        $restored = registrySnapshot(match ($change) {
+            'lower revision' => 1, 'epoch' => 3, default => 2
+        }, [registryApp('restored')]);
         if ($change === 'epoch') {
             $restored['epoch'] = 'restored-history';
         }

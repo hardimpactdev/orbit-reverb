@@ -25,6 +25,8 @@ final class ManagedPusherServer extends Server
         if ($from instanceof ManagedConnection && $from->revoked()) {
             return;
         }
+        $this->channels->for($from->app());
+
         parent::message($from, $message);
     }
 

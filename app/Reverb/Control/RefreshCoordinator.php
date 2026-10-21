@@ -5,12 +5,10 @@ declare(strict_types=1);
 namespace App\Reverb\Control;
 
 use App\Reverb\Connections;
-use App\Reverb\Measurements;
 use App\Reverb\RegistryRestartRequired;
 use App\Reverb\ReverbManager;
 use Closure;
 use Illuminate\Support\Str;
-use Laravel\Reverb\Application;
 use Psr\Http\Message\ResponseInterface;
 use React\EventLoop\Loop;
 use React\EventLoop\TimerInterface;
@@ -191,7 +189,6 @@ final class RefreshCoordinator
             'state' => $this->serving ? 'serving' : 'starting',
             'app_count' => $this->manager->all()->count(),
             'connections' => $this->connections->counts(),
-            'messages' => app(Measurements::class)->totals(array_values($this->manager->all()->map(static fn (Application $app): string => $app->id())->all())),
             'error' => $this->error,
         ], JSON_THROW_ON_ERROR);
         $this->client->put($url, $this->headers() + ['Content-Type' => 'application/json'], $body)
