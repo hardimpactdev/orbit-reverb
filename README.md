@@ -1,18 +1,20 @@
 # Orbit Reverb
 
-A plain Laravel [Reverb](https://reverb.laravel.com) server. It has no
-business logic of its own: it accepts WebSocket connections over the Pusher
-protocol for several Reverb apps. Orbit deploys and runs this app the same
-way it deploys any other app; nothing in this repository is Orbit-specific.
+A Laravel [Reverb](https://reverb.laravel.com) server that accepts WebSocket
+connections over the Pusher protocol for several apps. Orbit-specific
+application code loads app changes from the Gateway without restarting Reverb.
 
 ## Configuration
 
-The environment configures every Reverb app. See `.env.example` for the
-full list; the values that matter are:
+The Gateway registry supplies apps and secrets at runtime. The environment
+configures access to it. See `.env.example` for the full list:
 
 | Variable | Meaning |
 | --- | --- |
-| `REVERB_APPS` | JSON list of apps. Each entry has `app_id`, `key`, and `secret`. |
+| `REVERB_REGISTRY_URL` | Gateway snapshot endpoint. |
+| `REVERB_PROCESS_ID` | Runtime identity provisioned by the Gateway. |
+| `REVERB_REGISTRY_TOKEN` | Restricted credential for snapshot pulls and apply reports. |
+| `REVERB_NOTIFICATION_TOKEN` | Credential for revision notifications. |
 | `REVERB_HOST` | Public hostname clients connect to: `reverb.orbit`. |
 | `REVERB_PORT` | Public port: `443`. |
 | `REVERB_SCHEME` | Public scheme: `https` (so clients use `wss://`). |
@@ -23,7 +25,7 @@ Each app has its own channels. Reverb checks each publish request against
 the secret of the app in its URL, so one app's credentials cannot publish
 on another app's channels.
 
-`AppScopedPusherServer` selects the sender's app before handling each
+`ManagedPusherServer` selects the sender's app before handling each
 WebSocket message. Reverb 1.11.1 checks client-event membership against a
 shared channel manager without selecting the app first. Its 60-second
 housekeeping jobs can leave that manager on another app and reject valid
@@ -39,10 +41,11 @@ runs without a database. `/up` is Laravel's stock health check.
 
 ## Running it
 
-Orbit runs this process on the gateway node:
+Orbit runs this process on the Node with the websocket role. It waits for a
+fresh registry snapshot before accepting connections:
 
 ```bash
-php artisan reverb:start --host=0.0.0.0 --port=8080
+php artisan orbit:reverb:start --host=0.0.0.0 --port=8080
 ```
 
 Caddy in front of it (managed by Orbit) terminates TLS and handles the
