@@ -5,6 +5,9 @@
          colors="true"
 >
     <testsuites>
+        <testsuite name="Arch">
+            <file>tests/ArchTest.php</file>
+        </testsuite>
         <testsuite name="Unit">
             <directory>tests/Unit</directory>
         </testsuite>
@@ -14,11 +17,13 @@
     </testsuites>
     <source>
         <include>
-            <directory>app</directory>
+            <directory>app/Reverb</directory>
+            <file>app/Providers/ReverbServiceProvider.php</file>
         </include>
     </source>
     <php>
         <env name="APP_ENV" value="testing"/>
+        <env name="APP_KEY" value="base64:dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHQ="/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>
@@ -28,7 +33,6 @@
         <env name="DB_URL" value=""/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
-        <env name="REVERB_APPS" value="[{&quot;app_id&quot;:&quot;gateway-id&quot;,&quot;key&quot;:&quot;gateway-key&quot;,&quot;secret&quot;:&quot;gateway-secret&quot;},{&quot;app_id&quot;:&quot;hauzer-id&quot;,&quot;key&quot;:&quot;hauzer-key&quot;,&quot;secret&quot;:&quot;hauzer-secret&quot;}]"/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>

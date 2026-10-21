@@ -1,24 +1,32 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "orbit/reverb",
+    "name": "hardimpactdev/orbit-reverb",
     "type": "project",
-    "description": "Plain Laravel Reverb server, deployed by Orbit as an App instance.",
-    "keywords": ["laravel", "reverb", "websocket"],
+    "description": "Laravel Reverb host with rolling app management.",
+    "keywords": [
+        "laravel",
+        "reverb",
+        "websocket"
+    ],
     "license": "MIT",
     "require": {
-        "php": "^8.3",
+        "php": "^8.4",
         "laravel/framework": "^13.17",
-        "laravel/reverb": "^1.11",
-        "laravel/tinker": "^3.0"
+        "laravel/reverb": "1.11.1",
+        "laravel/tinker": "^3.0",
+        "react/http": "^1.11",
+        "react/promise": "^3.0"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",
+        "larastan/larastan": "^3.9",
         "laravel/pail": "^1.2.5",
         "laravel/pao": "^1.0.6",
         "laravel/pint": "^1.27",
         "mockery/mockery": "^1.6",
         "nunomaduro/collision": "^8.6",
-        "pestphp/pest": "^5.3"
+        "pestphp/pest": "^5.3",
+        "pestphp/pest-plugin-type-coverage": "^5.0"
     },
     "autoload": {
         "psr-4": {
@@ -61,7 +69,10 @@
         ],
         "pre-package-uninstall": [
             "Illuminate\\Foundation\\ComposerScripts::prePackageUninstall"
-        ]
+        ],
+        "analyse": "vendor/bin/phpstan analyse",
+        "lint:check": "vendor/bin/pint --test",
+        "test:types": "vendor/bin/pest --type-coverage --min=100"
     },
     "extra": {
         "laravel": {

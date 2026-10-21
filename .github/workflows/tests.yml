@@ -1,0 +1,45 @@
+name: tests
+
+on:
+  push:
+    branches:
+      - main
+      - '*.x'
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        php: ['8.4', '8.5']
+    name: PHP ${{ matrix.php }} - ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: dom, curl, libxml, mbstring, zip, fileinfo, sqlite, pdo_sqlite, bcmath, intl
+          tools: composer:v2
+          coverage: none
+      - name: Install isolated wire-test dependency
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y redis-server
+      - run: composer install --no-interaction --prefer-dist
+      - run: cp .env.example .env
+      - run: composer analyse
+      - run: composer lint:check
+      - run: composer test:types
+      - run: composer test
+        env:
+          REVERB_TEST_REDIS_BINARY: /usr/bin/redis-server
+          PAO_DISABLE: '1'
