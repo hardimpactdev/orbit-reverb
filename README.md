@@ -14,7 +14,7 @@ configures access to it. See `.env.example` for the full list:
 | `REVERB_REGISTRY_URL` | Gateway snapshot endpoint. |
 | `REVERB_PROCESS_ID` | Runtime identity provisioned by the Gateway. |
 | `REVERB_REGISTRY_TOKEN` | Restricted credential for snapshot pulls and apply reports. |
-| `REVERB_NOTIFICATION_TOKEN` | Credential for revision notifications. |
+| `REVERB_NOTIFICATION_TOKEN` | Optional credential for revision hints; omit it when the Gateway uses periodic reconciliation. |
 | `REVERB_HOST` | Public hostname clients connect to: `reverb.orbit`. |
 | `REVERB_PORT` | Public port: `443`. |
 | `REVERB_SCHEME` | Public scheme: `https` (so clients use `wss://`). |
@@ -42,7 +42,7 @@ runs without a database. `/up` is Laravel's stock health check.
 ## Running it
 
 Orbit runs this process on the Node with the websocket role. It waits for a
-fresh registry snapshot before accepting connections:
+fresh registry snapshot before accepting connections. Only the registry URL, runtime identity and registry token are required; a missing notification token disables revision hints and does not prevent startup. The normal 30-second reconciliation still applies changes without reconnecting other apps:
 
 ```bash
 php artisan orbit:reverb:start --host=0.0.0.0 --port=8080

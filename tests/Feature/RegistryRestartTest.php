@@ -52,7 +52,7 @@ it('exits with failure on a registry history change and cold starts with the res
                 config()->set([
                     'registry.registry_url' => 'http://127.0.0.1:'.$gatewayPort.'/registry',
                     'registry.registry_token' => 'registry-test',
-                    'registry.notification_token' => 'notification-test',
+                    'registry.notification_token' => null,
                     'registry.process_id' => 'restore-test',
                     'registry.reconcile_interval' => 0.02,
                     'reverb.servers.reverb.port' => $serverPort,
