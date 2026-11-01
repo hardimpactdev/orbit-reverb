@@ -51,3 +51,13 @@ php artisan orbit:reverb:start --host=0.0.0.0 --port=8080
 Caddy in front of it (managed by Orbit) terminates TLS and handles the
 WebSocket upgrade for `reverb.orbit`, then forwards the connection to that
 port.
+
+## Native registry confirmation
+
+`POST /internal/orbit/registry/apply` makes one refresh through the existing registry integration. It waits for sockets revoked by that refresh to close, then returns public confirmation from this process. It uses Reverb's HTTP promise support and existing close-handshake deadline. It does not poll or wait for background retries. Gateway outage, unapplied revision or superseded intent returns HTTP 409; credentials and response bodies never enter the result.
+
+Authenticate with the process's existing `REVERB_REGISTRY_TOKEN`. The request names `process_id`, `epoch`, positive `revision`, and `kind` (`sync`, `create`, `destroy` or `rotate`). Changes also name `app_id`; rotation requires its positive `credential_generation`. Other fields are refused. A later revision confirms create while its app still exists, rotation only while that generation remains, and destroy only while the app is absent. These match the Gateway's registry rules.
+
+Success returns `outcome: succeeded`, `data.backend: applied`, and `runtime` with process ID, boot ID, epoch, revision and serving state. There are no app credentials, application lists, connection counts or provider diagnostics. A request naming another process is refused before refresh. WebSocket upgrades are refused on the internal control paths, including encoded paths. Caddy must continue to withhold these internal paths; native clients reach the local listener through the approved pinned SSH transport.
+
+This replaces only the confirmation read: ordinary snapshot pulls, reports, 30-second reconciliation, application-scoped revocation and stock Pusher protocol remain in place. The Gateway records app intent before the request. Unlike the former Gateway report poll, this response certifies application directly on the current Reverb boot even if an asynchronous report has not yet reached the Gateway. It does not restart the process or create credentials.

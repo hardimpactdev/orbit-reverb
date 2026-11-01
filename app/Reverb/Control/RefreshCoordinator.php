@@ -13,6 +13,8 @@ use Psr\Http\Message\ResponseInterface;
 use React\EventLoop\Loop;
 use React\EventLoop\TimerInterface;
 use React\Http\Browser;
+use React\Promise\Deferred;
+use React\Promise\PromiseInterface;
 use RuntimeException;
 use Throwable;
 
@@ -41,6 +43,9 @@ final class RefreshCoordinator
     private readonly string $bootId;
 
     private Browser $client;
+
+    /** @var list<Deferred> */
+    private array $synchronizations = [];
 
     public function __construct(private readonly ReverbManager $manager, private readonly Connections $connections)
     {
@@ -87,6 +92,8 @@ final class RefreshCoordinator
             $this->retryTimer = null;
         }
         $this->fetching = true;
+        $waiting = $this->synchronizations;
+        $this->synchronizations = [];
 
         if (! $this->registered) {
             $this->client->post($this->processUrl().'/boots', $this->headers() + ['Content-Type' => 'application/json'], json_encode(['boot_id' => $this->bootId], JSON_THROW_ON_ERROR))
@@ -147,14 +154,55 @@ final class RefreshCoordinator
                 $this->error = 'registry.unreachable';
                 $this->retry();
             },
-        )->finally(function (): void {
+        )->finally(function () use ($waiting): void {
             $this->fetching = false;
+            $this->finishSynchronizations($waiting);
 
             if ($this->pending) {
                 $this->pending = false;
                 Loop::futureTick($this->refresh(...));
             }
         });
+    }
+
+    /** One existing registry refresh; failures return without waiting for background retries. */
+    public function synchronize(): PromiseInterface
+    {
+        $completion = new Deferred;
+        if (! $this->registered || ! $this->serving) {
+            $this->finishSynchronizations([$completion]);
+
+            return $completion->promise();
+        }
+        $this->synchronizations[] = $completion;
+        $this->refresh();
+
+        return $completion->promise();
+    }
+
+    /** @param list<Deferred> $waiting */
+    private function finishSynchronizations(array $waiting): void
+    {
+        if ($waiting === []) {
+            return;
+        }
+        $successful = $this->error === null && $this->restartRequired === null;
+        $complete = function () use ($waiting, $successful): void {
+            $result = [
+                'process_id' => config('registry.process_id'), 'boot_id' => $this->bootId,
+                'epoch' => $this->manager->epoch(), 'revision' => $this->manager->revision(),
+                'state' => $successful && $this->restartRequired === null && $this->serving && $this->manager->ready()
+                    ? 'serving' : 'pending',
+            ];
+            foreach ($waiting as $completion) {
+                $completion->resolve($result);
+            }
+        };
+        if (! $successful) {
+            $complete();
+        } else {
+            $this->connections->whenSettled($complete);
+        }
     }
 
     public function assertCurrentHistory(): void

@@ -5,12 +5,16 @@ declare(strict_types=1);
 namespace App\Reverb;
 
 use App\Reverb\Protocol\ManagedConnection;
+use Closure;
 use Laravel\Reverb\Protocols\Pusher\Contracts\ChannelManager;
 
 final class Connections
 {
     /** @var array<int, ManagedConnection> */
     private array $connections = [];
+
+    /** @var list<Closure(): void> */
+    private array $settled = [];
 
     public function add(ManagedConnection $connection): void
     {
@@ -20,6 +24,24 @@ final class Connections
     public function remove(ManagedConnection $connection): void
     {
         unset($this->connections[spl_object_id($connection)]);
+        if (! $this->hasClosing()) {
+            $callbacks = $this->settled;
+            $this->settled = [];
+            foreach ($callbacks as $callback) {
+                $callback();
+            }
+        }
+    }
+
+    /** Complete after the existing revocation close handshake, without polling. */
+    public function whenSettled(Closure $callback): void
+    {
+        if (! $this->hasClosing()) {
+            $callback();
+
+            return;
+        }
+        $this->settled[] = $callback;
     }
 
     /** @param array<string, int> $apps */
