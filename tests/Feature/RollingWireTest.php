@@ -74,7 +74,9 @@ it('adds removes and rotates across two real processes without reconnecting the 
                     if (is_file($dir.'/drop-reports')) {
                         return new Response(503);
                     }
-                    file_put_contents($dir.'/'.basename($request->getUri()->getPath()).'.report', (string) $request->getBody());
+                    $report = $dir.'/'.basename($request->getUri()->getPath()).'.report';
+                    file_put_contents($report.'.next', (string) $request->getBody());
+                    rename($report.'.next', $report);
 
                     return new Response(204);
                 }
