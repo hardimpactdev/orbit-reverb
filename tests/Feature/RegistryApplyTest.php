@@ -15,6 +15,7 @@ use Laravel\Reverb\Servers\Reverb\Http\Response as ReverbResponse;
 use Psr\Http\Message\ServerRequestInterface;
 use React\EventLoop\Loop;
 use React\EventLoop\StreamSelectLoop;
+use React\Http\Browser;
 use React\Http\HttpServer;
 use React\Http\Message\Response;
 use React\Promise\PromiseInterface;
@@ -53,12 +54,25 @@ function withRegistryApply(Closure $test): void
 {
     $previous = Loop::get();
     Loop::set(new StreamSelectLoop);
-    $state = (object) ['snapshot' => registrySnapshot(1, [registryApp('a'), registryApp('b')]), 'unavailable' => false, 'failReadAt' => null, 'reads' => 0];
+    $state = (object) ['snapshot' => registrySnapshot(1, [registryApp('a'), registryApp('b')]), 'unavailable' => false, 'failReadAt' => null, 'reads' => 0, 'reportStatus' => 204, 'reports' => 0, 'failReportRevision' => null];
     $server = new HttpServer(static function (ServerRequestInterface $request) use ($state): Response {
         if ($request->getHeaderLine('Authorization') !== 'Bearer registry-fixture') {
             return new Response(403);
         }
         if ($request->getMethod() !== 'GET') {
+            if ($request->getMethod() === 'PUT') {
+                $state->reports++;
+
+                $revision = json_decode((string) $request->getBody(), true)['revision'];
+                if ($revision === $state->failReportRevision) {
+                    $state->failReportRevision = null;
+
+                    return new Response(409);
+                }
+
+                return new Response($state->reportStatus);
+            }
+
             return new Response(204);
         }
         $state->reads++;
@@ -245,5 +259,77 @@ it('settles a failed refresh independently of the next overlapping request', fun
             'statuses' => array_map(static fn (ReverbResponse $response): int => $response->getStatusCode(), $responses),
         ])));
         expect(json_decode($response->getContent(), true)['statuses'])->toBe([409, 200])->and($state->reads)->toBe(3);
+    });
+});
+
+it('refuses native confirmation when the Gateway rejects this superseded boot report', function (): void {
+    withRegistryApply(function ($controller, $request, $intent, $state): void {
+        $state->snapshot = registrySnapshot(2, [registryApp('a'), registryApp('b')]);
+        $state->reportStatus = 409;
+
+        $response = registryApplyResponse($controller($request($intent)));
+
+        expect($response->getStatusCode())->toBe(409)
+            ->and(json_decode($response->getContent(), true)['error_code'])->toBe('websocket.registry_pending');
+    });
+});
+
+it('keeps a failed boot acknowledgement separate from a later overlapping success', function (): void {
+    withRegistryApply(function ($controller, $request, $intent, $state): void {
+        $state->snapshot = registrySnapshot(2, [registryApp('a'), registryApp('b')]);
+        $state->failReportRevision = 2;
+        $first = $controller($request($intent));
+        $second = $controller($request($intent));
+        $statuses = [];
+        foreach ([$first, $second] as $pending) {
+            $pending->then(function (ReverbResponse $response) use (&$statuses): void {
+                $statuses[] = $response->getStatusCode();
+                if (count($statuses) === 2) {
+                    Loop::stop();
+                }
+            });
+        }
+        $deadline = Loop::addTimer(2, static function (): void {
+            Loop::stop();
+        });
+        Loop::run();
+        Loop::cancelTimer($deadline);
+
+        expect($statuses)->toBe([409, 200]);
+    });
+});
+
+it('confirms the acknowledged version after its actual revoked socket closes', function (): void {
+    withRegistryApply(function ($controller, $request, $intent, $state): void {
+        $connections = app(Connections::class);
+        $raw = Mockery::mock(ConnectionInterface::class);
+        $raw->stream = fopen('php://temp', 'r+');
+        $client = new ManagedConnection(new Transport(new HttpConnection($raw)), app(ReverbManager::class)->findById('a'), null);
+        $connections->add($client);
+        $client->markRevoked(4001);
+        $state->snapshot = registrySnapshot(2, [registryApp('a'), registryApp('b')]);
+        $browser = Mockery::mock(Browser::class);
+        $browser->shouldReceive('get')->once()->andReturn(\React\Promise\resolve(new Response(200, [], json_encode($state->snapshot, JSON_THROW_ON_ERROR))));
+        $browser->shouldReceive('put')->once()->andReturn(\React\Promise\resolve(new Response(204)));
+        (new ReflectionProperty(RefreshCoordinator::class, 'client'))->setValue(app(RefreshCoordinator::class), $browser);
+        $result = null;
+        $pending = $controller($request($intent));
+        $pending->then(function (ReverbResponse $response) use (&$result): void {
+            $result = $response;
+        });
+        // The ordinary report is asynchronous; finish it, then release the held close event.
+        $deadline = Loop::addTimer(0.05, static function (): void {
+            Loop::stop();
+        });
+        Loop::run();
+        Loop::cancelTimer($deadline);
+        expect($result)->toBeNull();
+
+        $connections->remove($client);
+
+        expect($result)->toBeInstanceOf(ReverbResponse::class)
+            ->and($result->getStatusCode())->toBe(200)
+            ->and(json_decode($result->getContent(), true)['runtime'])->toMatchArray(['revision' => 2, 'state' => 'serving']);
+        fclose($raw->stream);
     });
 });

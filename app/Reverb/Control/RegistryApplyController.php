@@ -15,6 +15,7 @@ final readonly class RegistryApplyController
 {
     public function __construct(private RefreshCoordinator $refresh, private ReverbManager $manager) {}
 
+    /** @return Response|PromiseInterface<Response> */
     public function __invoke(RequestInterface $request): Response|PromiseInterface
     {
         $token = config('registry.registry_token');
@@ -67,6 +68,7 @@ final readonly class RegistryApplyController
                 : ($intent['credential_generation'] ?? null) === null);
     }
 
+    /** @param array<string,mixed> $intent */
     private function preserves(array $intent): bool
     {
         if ($intent['kind'] === 'sync') {
@@ -82,6 +84,7 @@ final readonly class RegistryApplyController
             && ($app->options()['orbit_credential_generation'] ?? null) === $intent['credential_generation']);
     }
 
+    /** @param array<string,mixed>|null $runtime */
     private function refuse(string $code, int $status, ?array $runtime = null): Response
     {
         $result = ['error_code' => $code];
