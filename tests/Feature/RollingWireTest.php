@@ -12,7 +12,7 @@ use React\Http\Message\Response;
 use React\Socket\SocketServer;
 use Tests\Support\WireClient;
 
-it('adds removes and rotates across two real processes without reconnecting the other app', function (bool $scaling) {
+it('adds removes and rotates across two real processes without reconnecting the other app', function (bool $scaling, bool $notifications) {
     $dir = sys_get_temp_dir().'/reverb-wire-'.bin2hex(random_bytes(8));
     mkdir($dir, 0700);
     $snapshotPath = $dir.'/snapshot.json';
@@ -74,7 +74,9 @@ it('adds removes and rotates across two real processes without reconnecting the 
                     if (is_file($dir.'/drop-reports')) {
                         return new Response(503);
                     }
-                    file_put_contents($dir.'/'.basename($request->getUri()->getPath()).'.report', (string) $request->getBody());
+                    $report = $dir.'/'.basename($request->getUri()->getPath()).'.report';
+                    file_put_contents($report.'.next', (string) $request->getBody());
+                    rename($report.'.next', $report);
 
                     return new Response(204);
                 }
@@ -106,7 +108,7 @@ it('adds removes and rotates across two real processes without reconnecting the 
                 config()->set([
                     'registry.registry_url' => 'http://127.0.0.1:'.$gatewayPort.'/registry',
                     'registry.registry_token' => 'registry-test',
-                    'registry.notification_token' => 'notify-test',
+                    'registry.notification_token' => $notifications ? 'notify-test' : null,
                     'registry.process_id' => 'process-'.$i,
                     'registry.heartbeat_interval' => 0.02,
                     'registry.reconcile_interval' => 0.05,
@@ -163,7 +165,7 @@ it('adds removes and rotates across two real processes without reconnecting the 
         file_put_contents($dir.'/drop-reports', '');
         $writeSnapshot(2, [registryApp('a'), registryApp('b'), registryApp('c')]);
         foreach ($ports as $port) {
-            expect(rollingHttp($port, '/internal/orbit/registry-changed', 'POST', ['epoch' => 'test-registry', 'revision' => 2]))->toBe(202);
+            expect(rollingHttp($port, '/internal/orbit/registry-changed', 'POST', ['epoch' => 'test-registry', 'revision' => 2]))->toBe($notifications ? 202 : 403);
             expect(rollingHttp($port, '/internal/orbit/registry-changed', 'POST', [], 'wrong'))->toBe(403);
         }
         usleep(100000);
@@ -187,7 +189,7 @@ it('adds removes and rotates across two real processes without reconnecting the 
         }
         rollingAssertDelivery($ports, $clients, $scaling, 'before-remove');
         $writeSnapshot(3, [registryApp('a'), registryApp('b')]);
-        // No notification: reconciliation must repair a lost webhook on both processes.
+        // No notification sent: periodic reconciliation applies the removal on both processes.
         $waitApplied(3);
         foreach ($clients as $set) {
             expect($set['c']->closeCode())->toBe(4001)
@@ -241,4 +243,4 @@ it('adds removes and rotates across two real processes without reconnecting the 
         }
         rmdir($dir);
     }
-})->with(['local delivery' => false, 'Redis scale-out delivery' => true])->skip(! function_exists('pcntl_fork'), 'Requires process isolation with pcntl.');
+})->with(['local without hints' => [false, false], 'local with hints' => [false, true], 'Redis without hints' => [true, false], 'Redis with hints' => [true, true]])->skip(! function_exists('pcntl_fork'), 'Requires process isolation with pcntl.');

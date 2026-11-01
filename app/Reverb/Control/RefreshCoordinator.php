@@ -51,7 +51,7 @@ final class RefreshCoordinator
 
     public function start(Closure $onReady): void
     {
-        foreach (['registry_url', 'registry_token', 'notification_token', 'process_id'] as $key) {
+        foreach (['registry_url', 'registry_token', 'process_id'] as $key) {
             if (! is_string(config('registry.'.$key)) || config('registry.'.$key) === '') {
                 throw new RuntimeException('Reverb registry configuration is incomplete.');
             }
