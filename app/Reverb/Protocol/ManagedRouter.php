@@ -10,11 +10,11 @@ use Psr\Http\Message\RequestInterface;
 
 final class ManagedRouter extends Router
 {
-    public function __construct(private readonly Router $router, private readonly string $notificationPath) {}
+    public function __construct(private readonly Router $router, private readonly string $controlPrefix) {}
 
     public function dispatch(RequestInterface $request, Connection $connection): mixed
     {
-        if (rawurldecode($request->getUri()->getPath()) === $this->notificationPath && $request->hasHeader('Upgrade')) {
+        if (str_starts_with(rawurldecode($request->getUri()->getPath()), $this->controlPrefix) && $request->hasHeader('Upgrade')) {
             $this->close($connection, 400, 'WebSocket upgrade is not supported on this endpoint.');
 
             return null;

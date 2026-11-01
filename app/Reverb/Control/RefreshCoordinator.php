@@ -13,6 +13,8 @@ use Psr\Http\Message\ResponseInterface;
 use React\EventLoop\Loop;
 use React\EventLoop\TimerInterface;
 use React\Http\Browser;
+use React\Promise\Deferred;
+use React\Promise\PromiseInterface;
 use RuntimeException;
 use Throwable;
 
@@ -41,6 +43,9 @@ final class RefreshCoordinator
     private readonly string $bootId;
 
     private Browser $client;
+
+    /** @var list<Deferred<array<string,mixed>>> */
+    private array $synchronizations = [];
 
     public function __construct(private readonly ReverbManager $manager, private readonly Connections $connections)
     {
@@ -87,6 +92,8 @@ final class RefreshCoordinator
             $this->retryTimer = null;
         }
         $this->fetching = true;
+        $waiting = $this->synchronizations;
+        $this->synchronizations = [];
 
         if (! $this->registered) {
             $this->client->post($this->processUrl().'/boots', $this->headers() + ['Content-Type' => 'application/json'], json_encode(['boot_id' => $this->bootId], JSON_THROW_ON_ERROR))
@@ -110,13 +117,14 @@ final class RefreshCoordinator
 
             return;
         }
+        $acknowledged = false;
         $headers = $this->headers();
 
         if ($this->manager->epoch() !== null) {
             $headers['If-None-Match'] = '"'.$this->manager->epoch().':'.$this->manager->revision().'"';
         }
         $this->client->get((string) config('registry.registry_url'), $headers)->then(
-            function (ResponseInterface $response): void {
+            function (ResponseInterface $response) use ($waiting, &$acknowledged): ?PromiseInterface {
                 try {
                     if ($response->getStatusCode() === 200) {
                         $data = json_decode((string) $response->getBody(), true, flags: JSON_THROW_ON_ERROR);
@@ -134,6 +142,11 @@ final class RefreshCoordinator
                         ($this->onReady)();
                         $this->serving = true;
                     }
+                    if ($waiting !== []) {
+                        return $this->sendReport()->then(static function (bool $accepted) use (&$acknowledged): void {
+                            $acknowledged = $accepted;
+                        });
+                    }
                     $this->report();
                 } catch (RegistryRestartRequired $exception) {
                     $this->restartRequired = $exception;
@@ -142,19 +155,67 @@ final class RefreshCoordinator
                     $this->error = 'registry.apply_failed';
                     $this->retry();
                 }
+
+                return null;
             },
             function (): void {
                 $this->error = 'registry.unreachable';
                 $this->retry();
             },
-        )->finally(function (): void {
+        )->finally(function () use ($waiting, &$acknowledged): void {
             $this->fetching = false;
+            $this->finishSynchronizations($waiting, $acknowledged);
 
             if ($this->pending) {
                 $this->pending = false;
                 Loop::futureTick($this->refresh(...));
             }
         });
+    }
+
+    /**
+     * One existing registry refresh; failures return without waiting for background retries.
+     *
+     * @return PromiseInterface<array<string,mixed>>
+     */
+    public function synchronize(): PromiseInterface
+    {
+        $completion = new Deferred;
+        if (! $this->registered || ! $this->serving) {
+            $this->finishSynchronizations([$completion]);
+
+            return $completion->promise();
+        }
+        $this->synchronizations[] = $completion;
+        $this->refresh();
+
+        return $completion->promise();
+    }
+
+    /** @param list<Deferred<array<string,mixed>>> $waiting */
+    private function finishSynchronizations(array $waiting, bool $acknowledged = false): void
+    {
+        if ($waiting === []) {
+            return;
+        }
+        $successful = $acknowledged && $this->error === null && $this->restartRequired === null;
+        $result = [
+            'process_id' => config('registry.process_id'), 'boot_id' => $this->bootId,
+            'epoch' => $this->manager->epoch(), 'revision' => $this->manager->revision(),
+        ];
+        $complete = function () use ($waiting, $result, $successful): void {
+            $result['state'] = $successful && $this->restartRequired === null && $this->serving && $this->manager->ready()
+                && $this->manager->epoch() === $result['epoch'] && $this->manager->revision() === $result['revision']
+                ? 'serving' : 'pending';
+            foreach ($waiting as $completion) {
+                $completion->resolve($result);
+            }
+        };
+        if (! $successful) {
+            $complete();
+        } else {
+            $this->connections->whenSettled($complete);
+        }
     }
 
     public function assertCurrentHistory(): void
@@ -180,6 +241,14 @@ final class RefreshCoordinator
             return;
         }
         $this->reporting = true;
+        $this->sendReport()->finally(function (): void {
+            $this->reporting = false;
+        });
+    }
+
+    /** @return PromiseInterface<bool> */
+    private function sendReport(): PromiseInterface
+    {
         $url = $this->processUrl();
         $body = json_encode([
             'boot_id' => $this->bootId,
@@ -191,11 +260,9 @@ final class RefreshCoordinator
             'connections' => $this->connections->counts(),
             'error' => $this->error,
         ], JSON_THROW_ON_ERROR);
-        $this->client->put($url, $this->headers() + ['Content-Type' => 'application/json'], $body)
-            ->then(static function (): void {}, static function (): void {})
-            ->finally(function (): void {
-                $this->reporting = false;
-            });
+
+        return $this->client->put($url, $this->headers() + ['Content-Type' => 'application/json'], $body)
+            ->then(static fn (ResponseInterface $response): bool => $response->getStatusCode() === 204, static fn (): bool => false);
     }
 
     private function processUrl(): string

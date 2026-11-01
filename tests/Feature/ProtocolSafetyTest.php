@@ -21,7 +21,7 @@ it('rejects encoded control endpoint upgrades before opening a websocket', funct
     $raw->shouldReceive('end')->once();
     ManagedFactory::makePusherRouter('/prefix')->dispatch(new Request('POST', $path, ['Upgrade' => 'websocket']), new HttpConnection($raw));
     fclose($raw->stream);
-})->with(['/prefix/internal/orbit/registry-changed', '/prefix/%69nternal/orbit/registry-changed']);
+})->with(['/prefix/internal/orbit/registry-changed', '/prefix/%69nternal/orbit/registry-changed', '/prefix/internal/orbit/registry/apply', '/prefix/%69nternal/orbit/registry/apply']);
 
 it('bounds transport shutdown even when ordinary termination precedes revocation', function () {
     $previousLoop = Loop::get();
